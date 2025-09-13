@@ -1,4 +1,5 @@
 import React from 'react'
+import Link from 'next/link'
 import {
     Sidebar,
     SidebarContent,
@@ -10,10 +11,13 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    Button
 } from "@/components/ui/sidebar"
-import { Calendar, Home, Inbox, Search, Settings } from "lucide-react"
+import { Calendar, Home, Inbox, Megaphone, Search, Settings, Wallet2, } from "lucide-react"
 import Image from 'next/image'
 import { useParams, usePathname } from 'next/navigation'
+import { useAuthContext } from '../provider'
+import ProfileAvatar from './ProfileAvatar'
 
 const items = [
     {
@@ -22,22 +26,22 @@ const items = [
         icon: Home,
     },
     {
-        title: "Inbox",
-        url: "#",
+        title: "Creative Tools",
+        url: "/creative-tools",
         icon: Inbox,
     },
     {
-        title: "Calendar",
+        title: "My ads",
         url: "#",
-        icon: Calendar,
+        icon: Megaphone,
     },
     {
-        title: "Search",
+        title: "Upgrade",
         url: "#",
-        icon: Search,
+        icon: Wallet2,
     },
     {
-        title: "Settings",
+        title: "Profile",
         url: "#",
         icon: Settings,
     },
@@ -45,11 +49,12 @@ const items = [
 
 export function AppSidebar() {
     const path = usePathname();
+    const { user } = useAuthContext()
     return (
         <Sidebar>
             <SidebarHeader>
                 <div className='p-4'>
-                    <Image src={'./logo.svg'} alt='logo' width={100} height={100}
+                    <Image src={'/logo.svg'} alt='logo' width={100} height={100}
                         className='w-full h-full' />
                     <h2 className='text-sm text-gray-400 text-center'>Build Awesome</h2>
                 </div>
@@ -76,7 +81,17 @@ export function AppSidebar() {
                 </SidebarGroup>
             </SidebarContent>
             <SidebarFooter>
-                <h2 className='p-2 text-gray-400 text-sm'>Copyright @Tubeguruji</h2>
+                {!user ? <Link href={'/login'} className='w-full'>
+                    <Button className='w-full'>
+                        Sign in
+                    </Button>
+                </Link>
+                    :
+                    <div className='flex justify-between items-center p-2 px-4 bg-zinc-800 rounded-lg'>
+                        <h2>Profile</h2>
+                        <ProfileAvatar />
+                    </div>
+                }
             </SidebarFooter>
         </Sidebar>
     )
