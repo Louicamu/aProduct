@@ -9,6 +9,7 @@ const PROMPT_ENGINEERING_PROMPT = `You are a world-class prompt engineer... [内
 type AliyunSize = "1024*1024" | "720*1280" | "1280*720";
 
 // --- 这是一个新的辅助函数，专门用于调用阿里云 API ---
+// --- 这是一个新的辅助函数，专门用于调用阿里云 API (IP 直连版) ---
 async function callAliyunWanxiang(
   prompt: string,
   size: AliyunSize,
@@ -16,9 +17,10 @@ async function callAliyunWanxiang(
   accessKeySecret: string
 ) {
   const endpoint = "pai-vision.ap-southeast-1.aliyuncs.com";
-  const requestUrl = `https://pai-vision.ap-southeast-1.aliyuncs.com/`;
+  const ipAddress = "47.242.9.23"; // 直接使用 IP 地址
+  const requestUrl = `https://${ipAddress}/`; // 请求将发往这个 IP
 
-  // 1. 准备公共请求参数
+  // ... [参数准备和签名计算部分与之前完全相同，无需修改] ...
   const commonParams = {
     Format: "JSON",
     Version: "2022-07-25",
@@ -30,15 +32,7 @@ async function callAliyunWanxiang(
     Action: "GenerateImage",
     RegionId: "ap-southeast-1",
   };
-
-  // 2. 准备动作特定参数
-  const actionParams = {
-    Prompt: prompt,
-    N: 1,
-    Size: size,
-  };
-
-  // 3. 合并并排序所有参数
+  const actionParams = { Prompt: prompt, N: 1, Size: size };
   const allParams = { ...commonParams, ...actionParams };
   const sortedKeys = Object.keys(allParams).sort();
   const canonicalizedQueryString = sortedKeys
@@ -49,29 +43,24 @@ async function callAliyunWanxiang(
         )}`
     )
     .join("&");
-
-  // 4. 创建待签名字符串
   const stringToSign = `POST&${encodeURIComponent("/")}&${encodeURIComponent(
     canonicalizedQueryString
   )}`;
-
-  // 5. 计算签名
   const signature = crypto
     .createHmac("sha1", `${accessKeySecret}&`)
     .update(stringToSign)
     .digest("base64");
-
-  // 6. 最终的请求 URL (签名作为查询参数)
   const finalUrl = `${requestUrl}?${canonicalizedQueryString}&Signature=${encodeURIComponent(
     signature
   )}`;
 
-  // 7. 发送 POST 请求
+  // 7. 发送 POST 请求，并手动指定 Host 头
+  console.log(`Sending request to IP: ${ipAddress} with Host: ${endpoint}`); // 添加日志
   const response = await fetch(finalUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
-      Host: endpoint,
+      Host: endpoint, // <-- 关键！告诉阿里云服务器我们想访问哪个域名
     },
   });
 
