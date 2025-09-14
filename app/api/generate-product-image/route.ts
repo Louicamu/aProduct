@@ -1,19 +1,39 @@
 import { imagekit } from "@/lib/imagekit";
-import { clientOpenAi } from "@/lib/openai"; // 假设这个文件导出了一个正确的 OpenAI 实例
+import OpenAI from "openai"; // 1. 我们仍然使用 OpenAI 的官方库！
 import { NextRequest, NextResponse } from "next/server";
 
-// 您的提示词保持不变
-const PROMPT = `Create a vibrant product showcase image featuring a uploaded image in the center, surrounded by dynamic splashes of liquid or relevant mate.
-       Use a clean, colorful background to make the product stand out. Including ingredients, or theme floating around to add context and visual interest.
-       Ensure the product is sharp and in focus, with motion and energy conveyed through the splash effects.
-       Also give me image to video prompt for same in JSON format:{textToImage:'',imageToVideo:''}`;
+const PROMPT = `You are an expert in product photography.
+Based on the user-uploaded product image, create a prompt for a text-to-image AI to generate a vibrant product showcase image.
+The showcase image should feature the product in the center, surrounded by dynamic splashes of liquid or relevant materials.
+Use a clean, colorful background to make the product stand out. Include related ingredients or themes floating around to add context and visual interest.
+Ensure the product is sharp and in focus, with motion and energy conveyed through the splash effects.
+
+Additionally, create a prompt for an image-to-video AI based on the generated showcase image idea.
+
+You MUST respond in a valid JSON format like this: { "textToImage": "your_prompt_here", "imageToVideo": "your_prompt_here" }`;
 
 export async function POST(req: NextRequest) {
   try {
+    // --- 读取 Vercel 上的新环境变量 ---
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+
+    if (!apiKey) {
+      console.error("DEEPSEEK_API_KEY is not configured.");
+      return NextResponse.json(
+        { error: "Server configuration error." },
+        { status: 500 }
+      );
+    }
+
+    // 2. 创建一个指向 DeepSeek 服务器的客户端实例
+    const deepseek = new OpenAI({
+      apiKey: apiKey,
+      baseURL: "https://api.deepseek.com/v1", // <-- 这是关键！我们把地址指向了 DeepSeek
+    });
+
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
 
-    // --- 健壮性检查 ---
     if (!file) {
       return NextResponse.json(
         { error: "No file found in the request." },
@@ -21,24 +41,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // --- 1. 上传图片到 ImageKit ---
     const arrayBuffer = await file.arrayBuffer();
     const base64File = Buffer.from(arrayBuffer).toString("base64");
 
     const imageKitRef = await imagekit.upload({
       file: base64File,
       fileName: Date.now() + ".jpeg",
-      isPublished: true, // 确保您的 imagekit 配置支持此项
+      isPublished: true,
     });
 
     console.log("Image uploaded to ImageKit:", imageKitRef.url);
 
-    // --- 2. 调用 OpenAI API (使用修正后的格式) ---
-    // 注意: "gpt-5" 目前不存在，请使用一个有效的视觉模型，例如 "gpt-4o"
-    const model = "gpt-4o";
-
-    const response = await clientOpenAi.chat.completions.create({
-      model: model,
+    // 3. 调用 DeepSeek 的视觉模型
+    const response = await deepseek.chat.completions.create({
+      model: "deepseek-vl-chat", // <-- DeepSeek 的视觉语言模型名称
       messages: [
         {
           role: "user",
@@ -50,34 +66,26 @@ export async function POST(req: NextRequest) {
             {
               type: "image_url",
               image_url: {
-                url: imageKitRef.url, // 直接使用 ImageKit 返回的公开 URL
-                detail: "auto", // 添加必需的 detail 属性
+                url: imageKitRef.url,
               },
             },
           ],
         },
       ],
-      // 如果您希望 OpenAI 返回 JSON 格式，强烈建议使用 JSON 模式
-      response_format: { type: "json_object" },
-      max_tokens: 1000, // 根据需要调整
+      response_format: { type: "json_object" }, // DeepSeek 也支持 JSON 模式
+      max_tokens: 1000,
     });
 
-    // --- 3. 处理 OpenAI 的响应 ---
     const textOutput = response.choices[0].message.content;
 
     if (!textOutput) {
-      throw new Error("OpenAI did not return any content.");
+      throw new Error("DeepSeek API did not return any content.");
     }
 
-    // 因为我们使用了 JSON 模式，所以可以直接解析
     const json = JSON.parse(textOutput);
-
     return NextResponse.json(json);
   } catch (error) {
-    // 详细的错误日志对于调试至关重要
     console.error("[API_ERROR]", error);
-
-    // 向客户端返回一个通用的错误信息
     return NextResponse.json(
       { error: "An internal server error occurred." },
       { status: 500 }
