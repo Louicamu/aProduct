@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
     // --- 这是最核心的修改：手动构建请求体 (Payload) ---
     const payload = {
-      model: "deepseek-vl-chat",
+      model: "deepseek-chat",
       messages: [
         {
           role: "user",
