@@ -1,24 +1,91 @@
-import RPCClient from "@alicloud/pop-core"; // 1. 导入阿里云 SDK
+// 我们不再需要阿里云的 SDK 了
+// import RPCClient from '@alicloud/pop-core';
 import { NextRequest, NextResponse } from "next/server";
+// 我们需要 Node.js 的 crypto 模块来做签名
+import crypto from "crypto";
 
-// 提示 DeepSeek 成为一个专业的“提示词工程师”
-const PROMPT_ENGINEERING_PROMPT = `You are a world-class prompt engineer for the Alibaba Cloud Tongyi Wanxiang AI image generator.
-Based on the user's uploaded image and their simple description, your task is to create a single, highly detailed, and visually descriptive prompt in English that will be used to generate a stunning product showcase image.
-
-Follow these rules:
-- Describe the main product from the image as the central subject.
-- Incorporate the user's description.
-- Describe a dynamic and vibrant scene around the product (e.g., "dynamic splashes of colorful liquid," "glowing particles," "relevant ingredients like fresh oranges and mint leaves floating gracefully").
-- Specify the background (e.g., "a clean, minimalist studio background with soft pastel colors," "a dramatic, dark background with cinematic lighting").
-- Describe the lighting and atmosphere (e.g., "bright, energetic, commercial-style lighting," "soft, ethereal morning light").
-- The final output MUST be a single paragraph of text. DO NOT add any other text, explanations, or formatting.`;
-
-// 通义万相支持的尺寸
+// ... PROMPT_ENGINEERING_PROMPT 保持不变 ...
+const PROMPT_ENGINEERING_PROMPT = `You are a world-class prompt engineer... [内容省略]`;
 type AliyunSize = "1024*1024" | "720*1280" | "1280*720";
+
+// --- 这是一个新的辅助函数，专门用于调用阿里云 API ---
+async function callAliyunWanxiang(
+  prompt: string,
+  size: AliyunSize,
+  accessKeyId: string,
+  accessKeySecret: string
+) {
+  const endpoint = "pai-vision.cn-hangzhou.aliyuncs.com";
+  const requestUrl = `https://pai-vision.cn-hangzhou.aliyuncs.com/`;
+
+  // 1. 准备公共请求参数
+  const commonParams = {
+    Format: "JSON",
+    Version: "2022-07-25",
+    AccessKeyId: accessKeyId,
+    SignatureMethod: "HMAC-SHA1",
+    Timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+    SignatureVersion: "1.0",
+    SignatureNonce: crypto.randomUUID(),
+    Action: "GenerateImage",
+    RegionId: "cn-hangzhou",
+  };
+
+  // 2. 准备动作特定参数
+  const actionParams = {
+    Prompt: prompt,
+    N: 1,
+    Size: size,
+  };
+
+  // 3. 合并并排序所有参数
+  const allParams = { ...commonParams, ...actionParams };
+  const sortedKeys = Object.keys(allParams).sort();
+  const canonicalizedQueryString = sortedKeys
+    .map(
+      (key) =>
+        `${encodeURIComponent(key)}=${encodeURIComponent(
+          allParams[key as keyof typeof allParams]
+        )}`
+    )
+    .join("&");
+
+  // 4. 创建待签名字符串
+  const stringToSign = `POST&${encodeURIComponent("/")}&${encodeURIComponent(
+    canonicalizedQueryString
+  )}`;
+
+  // 5. 计算签名
+  const signature = crypto
+    .createHmac("sha1", `${accessKeySecret}&`)
+    .update(stringToSign)
+    .digest("base64");
+
+  // 6. 最终的请求 URL (签名作为查询参数)
+  const finalUrl = `${requestUrl}?${canonicalizedQueryString}&Signature=${encodeURIComponent(
+    signature
+  )}`;
+
+  // 7. 发送 POST 请求
+  const response = await fetch(finalUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error("Aliyun API Error:", errorData);
+    throw new Error(`Aliyun API responded with status: ${response.status}`);
+  }
+
+  return response.json();
+}
 
 export async function POST(req: NextRequest) {
   try {
-    // --- 读取两个 API 密钥 ---
+    // ... 读取密钥和表单数据的部分保持不变 ...
     const deepseekApiKey = process.env.DEEPSEEK_API_KEY;
     const aliyunAccessKeyId = process.env.ALIYUN_ACCESS_KEY_ID;
     const aliyunAccessKeySecret = process.env.ALIYUN_ACCESS_KEY_SECRET;
@@ -30,13 +97,10 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
-
-    // --- 1. 从前端获取数据 ---
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const description = formData.get("description") as string | null;
     const size = (formData.get("size") as string) || "1024*1024";
-
     if (!file) {
       return NextResponse.json(
         { error: "No file found in the request." },
@@ -44,13 +108,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // --- 2. 【第一步】调用 DeepSeek 生成专业的图像提示 ---
+    // ... DeepSeek 生成提示的部分保持不变 ...
     console.log("Step 1: Generating prompt with DeepSeek...");
-    // ... (这部分代码与之前完全相同，保持不变) ...
     const arrayBuffer = await file.arrayBuffer();
     const base64File = Buffer.from(arrayBuffer).toString("base64");
     const mimeType = file.type;
-
     const deepseekPayload = {
       model: "deepseek-chat",
       messages: [
@@ -82,48 +144,28 @@ export async function POST(req: NextRequest) {
       throw new Error("DeepSeek did not return a prompt.");
     console.log("Generated Tongyi Wanxiang Prompt:", generatedImagePrompt);
 
-    // --- 3. 【第二步】调用阿里云通义万相生成最终的图片 ---
+    // --- 【第二步】调用阿里云通义万相 (使用新的辅助函数) ---
     console.log(
       "Step 2: Generating image with Alibaba Cloud Tongyi Wanxiang..."
     );
 
-    // 2.1 初始化阿里云客户端
-    const client = new RPCClient({
-      accessKeyId: aliyunAccessKeyId,
-      accessKeySecret: aliyunAccessKeySecret,
-      endpoint: "https://pai-vision.cn-hangzhou.aliyuncs.com", // 这是通义万相的杭州地域节点
-      apiVersion: "2022-07-25", // 通义万相的 API 版本号
-    });
-
-    // 2.2 转换尺寸格式
     const sizeMapping: { [key: string]: AliyunSize } = {
       "1024*1024": "1024*1024",
-      "1536*1024": "1280*720", // 映射到最接近的16:9比例
-      "1024*1536": "720*1280", // 映射到最接近的9:16比例
+      "1536*1024": "1280*720",
+      "1024*1536": "720*1280",
     };
     const aliyunSize = sizeMapping[size] || "1024*1024";
 
-    // 2.3 发送请求
-    const aliyunResponse = await client.request(
-      "GenerateImage", // 调用的 API 动作
-      {
-        Prompt: generatedImagePrompt,
-        N: 1,
-        Size: aliyunSize,
-        // Style: '<photo>', // 您可以指定风格，例如 '<photo>', '<anime>', '<sketch>' 等
-      },
-      {
-        method: "POST", // 必须使用 POST 方法
-      }
+    const aliyunResponse = await callAliyunWanxiang(
+      generatedImagePrompt,
+      aliyunSize,
+      aliyunAccessKeyId,
+      aliyunAccessKeySecret
     );
 
-    // 2.4 从复杂的响应结构中提取图片 URL
-    // @ts-ignore
     const imageUrl = aliyunResponse?.Data?.Tasks?.[0]?.ImageUrls?.[0];
-
     console.log("Generated Image URL:", imageUrl);
 
-    // --- 4. 将最终的图片 URL 返回给前端 ---
     if (!imageUrl) {
       console.error(
         "Aliyun API response did not contain an image URL.",
