@@ -71,6 +71,7 @@ async function callAliyunWanxiang(
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
+      Host: endpoint,
     },
   });
 
