@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   console.log(imageKitRef.url);
 
   const response = await clientOpenAi.responses.create({
-    model: "gpt-4.1-mini",
+    model: "gpt-5",
 
     input: [
       {
