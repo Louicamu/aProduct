@@ -13,7 +13,7 @@ function ProductImages() {
 
     const [formData, setFormData] = useState<FormData>()
     const [loading, setLoading] = useState(false)
-    const onHandleInputChange = (field: string, value: string) => {
+    const onHandleInputChange = (field: string, value: string | File) => {
         setFormData((prev: any) => (
             {
                 ...prev,
