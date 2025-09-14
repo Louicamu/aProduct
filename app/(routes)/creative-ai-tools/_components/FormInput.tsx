@@ -5,6 +5,7 @@ import { ImagePlus, Loader2Icon, Monitor, Smartphone, Sparkle, Square } from 'lu
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
+
 const sampleProduct = [
     '/headphone.jpeg',
     '/juice-can.jpeg',
@@ -12,15 +13,18 @@ const sampleProduct = [
     '/burger.jpeg',
     '/ice-creme.jpeg'
 ]
+
 type Props = {
-    onHandleInputChange: any
-    OnGenerate: any
+    onHandleInputChange: (field: string, value: string | File) => void // 明确类型
+    OnGenerate: () => void
     loading: boolean
 }
+
 function FormInput({ onHandleInputChange, OnGenerate, loading }: Props) {
     const [preview, setPreview] = useState<string | null>()
+
     const onFileSelect = (files: FileList | null) => {
-        if (!files || files?.length == 0) return
+        if (!files || files?.length === 0) return
         const file = files[0]
         if (file.size > 5 * 1024 * 1024) {
             alert('file size greater than 5MB')
@@ -29,6 +33,33 @@ function FormInput({ onHandleInputChange, OnGenerate, loading }: Props) {
         onHandleInputChange('file', file)
         setPreview(URL.createObjectURL(file))
     }
+
+    // --- 新增的函数：处理范例图片的点击 ---
+    const handleSampleClick = async (productUrl: string) => {
+        try {
+            // 1. 设置预览图
+            setPreview(productUrl);
+
+            // 2. 从公开路径获取图片数据
+            const response = await fetch(productUrl);
+            const blob = await response.blob();
+
+            // 3. 将 Blob 数据转换成 File 对象
+            const fileName = productUrl.split('/').pop() || 'sample.jpeg';
+            const file = new File([blob], fileName, { type: blob.type });
+
+            // 4. 调用父组件的函数，传递一个真正的 File 对象！
+            onHandleInputChange('file', file);
+
+            // (可选) 清除可能存在的 imageUrl 状态，以 'file' 为准
+            // onHandleInputChange('imageUrl', ''); 
+
+        } catch (error) {
+            console.error("Error fetching sample image:", error);
+            alert("Could not load sample image.");
+        }
+    }
+
     return (
         <div>
             <div>
@@ -58,10 +89,8 @@ function FormInput({ onHandleInputChange, OnGenerate, loading }: Props) {
                         {sampleProduct.map((product, index) => (
                             <Image src={product} alt={product} width={100} height={100} key={index}
                                 className='w-[60px] h-[60px] rounded-lg cursor-pointer hover:scale-105 transition-all '
-                                onClick={() => {
-                                    setPreview(product);
-                                    onHandleInputChange('imageUrl', product)
-                                }}
+                                // --- 修改这里的 onClick 事件 ---
+                                onClick={() => handleSampleClick(product)}
                             />
                         ))}
                     </div>

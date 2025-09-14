@@ -49,7 +49,7 @@ function ProductImages() {
             <h2 className="font-bold text-2xl mb-3">AI Product Image Generator</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div>
-                    <FormInput onHandleInputChange={(field: string, value: string) => onHandleInputChange(field, value)}
+                    <FormInput onHandleInputChange={(field: string, value: string | File) => onHandleInputChange(field, value)}
                         OnGenerate={OnGenerate}
                         loading={loading}
                     />
