@@ -1,22 +1,12 @@
 import { imagekit } from "@/lib/imagekit";
-import OpenAI from "openai"; // 1. 我们仍然使用 OpenAI 的官方库！
+import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 
-const PROMPT = `You are an expert in product photography.
-Based on the user-uploaded product image, create a prompt for a text-to-image AI to generate a vibrant product showcase image.
-The showcase image should feature the product in the center, surrounded by dynamic splashes of liquid or relevant materials.
-Use a clean, colorful background to make the product stand out. Include related ingredients or themes floating around to add context and visual interest.
-Ensure the product is sharp and in focus, with motion and energy conveyed through the splash effects.
-
-Additionally, create a prompt for an image-to-video AI based on the generated showcase image idea.
-
-You MUST respond in a valid JSON format like this: { "textToImage": "your_prompt_here", "imageToVideo": "your_prompt_here" }`;
+const PROMPT = `You are an expert in product photography... [您的提示词保持不变] ... You MUST respond in a valid JSON format like this: { "textToImage": "your_prompt_here", "imageToVideo": "your_prompt_here" }`;
 
 export async function POST(req: NextRequest) {
   try {
-    // --- 读取 Vercel 上的新环境变量 ---
     const apiKey = process.env.DEEPSEEK_API_KEY;
-
     if (!apiKey) {
       console.error("DEEPSEEK_API_KEY is not configured.");
       return NextResponse.json(
@@ -25,10 +15,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. 创建一个指向 DeepSeek 服务器的客户端实例
     const deepseek = new OpenAI({
       apiKey: apiKey,
-      baseURL: "https://api.deepseek.com/v1", // <-- 这是关键！我们把地址指向了 DeepSeek
+      baseURL: "https://api.deepseek.com/v1",
     });
 
     const formData = await req.formData();
@@ -41,23 +30,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // --- 关键修改：我们现在直接使用 base64 数据 ---
     const arrayBuffer = await file.arrayBuffer();
     const base64File = Buffer.from(arrayBuffer).toString("base64");
+    // 获取文件的 MIME 类型，例如 "image/jpeg"
+    const mimeType = file.type;
 
-    const imageKitRef = await imagekit.upload({
-      file: base64File,
-      fileName: Date.now() + ".jpeg",
-      isPublished: true,
-    });
+    // --- 我们不再需要上传到 ImageKit 了 (暂时)，直接将 base64 发送给 DeepSeek ---
+    // const imageKitRef = await imagekit.upload({...});
 
-    console.log("Image uploaded to ImageKit:", imageKitRef.url);
-
-    // 3. 调用 DeepSeek 的视觉模型
     const response = await deepseek.chat.completions.create({
-      model: "deepseek-vl-chat", // <-- DeepSeek 的视觉语言模型名称
+      model: "deepseek-vl-chat",
       messages: [
         {
           role: "user",
+          // --- 这是最关键的修改部分 ---
           content: [
             {
               type: "text",
@@ -65,14 +52,16 @@ export async function POST(req: NextRequest) {
             },
             {
               type: "image_url",
+              // 我们将 image_url 简化为一个只包含 url 的对象
+              // url 的值是一个标准的 Data URL
               image_url: {
-                url: imageKitRef.url,
+                url: `data:${mimeType};base64,${base64File}`,
               },
             },
           ],
         },
       ],
-      response_format: { type: "json_object" }, // DeepSeek 也支持 JSON 模式
+      response_format: { type: "json_object" },
       max_tokens: 1000,
     });
 
