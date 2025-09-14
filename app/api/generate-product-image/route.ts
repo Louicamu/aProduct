@@ -15,8 +15,8 @@ async function callAliyunWanxiang(
   accessKeyId: string,
   accessKeySecret: string
 ) {
-  const endpoint = "pai-vision.ap-hangzhou.aliyuncs.com";
-  const requestUrl = `https://pai-vision.ap-hangzhou.aliyuncs.com/`;
+  const endpoint = "pai-vision.ap-southeast-1.aliyuncs.com";
+  const requestUrl = `https://pai-vision.ap-southeast-1.aliyuncs.com/`;
 
   // 1. 准备公共请求参数
   const commonParams = {
