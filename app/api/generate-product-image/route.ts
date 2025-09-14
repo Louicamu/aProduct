@@ -15,8 +15,8 @@ async function callAliyunWanxiang(
   accessKeyId: string,
   accessKeySecret: string
 ) {
-  const endpoint = "pai-vision.cn-hangzhou.aliyuncs.com";
-  const requestUrl = `https://pai-vision.cn-hangzhou.aliyuncs.com/`;
+  const endpoint = "pai-vision.ap-hangzhou.aliyuncs.com";
+  const requestUrl = `https://pai-vision.ap-hangzhou.aliyuncs.com/`;
 
   // 1. 准备公共请求参数
   const commonParams = {
@@ -28,7 +28,7 @@ async function callAliyunWanxiang(
     SignatureVersion: "1.0",
     SignatureNonce: crypto.randomUUID(),
     Action: "GenerateImage",
-    RegionId: "cn-hangzhou",
+    RegionId: "ap-southeast-1",
   };
 
   // 2. 准备动作特定参数
